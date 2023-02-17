@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "multi-cauchy"
+version = "0.1.0"
+description = "Analyis of magnetization vs field data in terms of Cauchy CDFs and PDFs"
+authors = ["Philip Bunting <77863580+pcb7445@users.noreply.github.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "multi_cauchy"}]
+
+[tool.poetry.dependencies]
+python = "3.11"
+pandas = "^1.5.3"
+numpy = "^1.24.2"
+matplotlib = "^3.7.0"
+scipy = "^1.10.0"
+lmfit = "^1.1.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.1.0"
+ipykernel = "^6.21.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
