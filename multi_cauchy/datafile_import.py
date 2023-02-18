@@ -31,11 +31,11 @@ class MvsHFile:
                 if "[Data]" in row:
                     break
                 else:
-                    self.header.append(row)
+                    self.header.append(row)  # type: ignore
         return self.header
 
     def _find_sample_info(self) -> dict[str, float]:
-        self.sample_info: dict[str | float] = {}
+        self.sample_info: dict[str, float] = {}
         for line in self.header:
             if line[0] == "INFO" and line[2] == "SAMPLE_MASS" and line[1]:
                 self.sample_info["mass"] = float(line[1])
@@ -61,12 +61,12 @@ class MvsHFile:
 
     def _simplify_data(self) -> None:
         # determine if the file contains VSM or dc data
-        if self.data["DC Moment Free Ctr (emu)"].notnull().values.sum() != 0:
+        if self.data["DC Moment Free Ctr (emu)"].notnull().values.sum() != 0:  # type: ignore
             self.data["uncorrected_moment_emu"] = self.data["DC Moment Free Ctr (emu)"]
             self.data["uncorrected_moment_error"] = self.data[
                 "DC Moment Err Free Ctr (emu)"
             ]
-        elif self.data["Moment (emu)"].notnull().values.sum() != 0:
+        elif self.data["Moment (emu)"].notnull().values.sum() != 0:  # type: ignore
             self.data["uncorrected_moment_emu"] = self.data["Moment (emu)"]
             self.data["uncorrected_moment_error"] = self.data["M. Std. Err. (emu)"]
         # prune the dataframe and simplify column names
@@ -100,7 +100,7 @@ class MvsHFile:
             self.temperatures_w_index.append((temperature, i))
         return self.temperatures_w_index
 
-    def set_sample_info(self, sample_info: dict[str | float]) -> None:
+    def set_sample_info(self, sample_info: dict[str, float]) -> None:
         self.sample_info = sample_info
         if self.sample_info["mass"] and self.sample_info["molecular_weight"]:
             self.sample_info["mol"] = (
@@ -118,7 +118,7 @@ class MvsHMeasurement:
         self.data = self._find_data(temperature_index)
         self.virgin, self.reverse, self.forward = self._set_sequences()
         if isinstance(self.reverse, pd.DataFrame) and self.forward is None:
-            self.forward = self._reverse_to_forward()
+            self.forward = self._reverse_df(self.reverse)
             self.reverse = None
 
     def _find_data(self, temperature_index: int) -> pd.DataFrame:
@@ -130,7 +130,9 @@ class MvsHMeasurement:
             df = self.file.data[start:].copy().reset_index(drop=True)
         return df
 
-    def _set_sequences(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def _set_sequences(
+        self,
+    ) -> tuple[pd.DataFrame | None, pd.DataFrame | None, pd.DataFrame | None]:
         sequence_starts = find_sequence_starts(self.data["field"])
         virgin, reverse, forward = None, None, None
         if len(sequence_starts) == 3:
@@ -172,9 +174,10 @@ class MvsHMeasurement:
                 reverse = self.data[sequence_starts[0] :].copy().reset_index(drop=True)
         return virgin, reverse, forward
 
-    def _reverse_to_forward(self) -> pd.DataFrame:
+    @staticmethod
+    def _reverse_df(df: pd.DataFrame) -> pd.DataFrame:
         """Converts a reverse sequence to a forward sequence."""
-        df = self.reverse.copy()
+        df = df.copy()
         columns = [
             "field",
             "uncorrected_moment_emu",

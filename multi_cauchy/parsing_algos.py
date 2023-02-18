@@ -1,7 +1,11 @@
+from typing import TypeAlias
 import pandas as pd
 import numpy as np
 
-def unique_values_w_rounding(x: list, tolerance) -> list[float]:
+ArrayLike: TypeAlias = list[float | int] | np.ndarray | pd.Series
+
+
+def unique_values_w_rounding(x: ArrayLike, tolerance) -> list[float]:
     """Returns a list of unique values in `x` where the values are considered equal
     if they are within `tolerance` of each other.
 
@@ -12,6 +16,7 @@ def unique_values_w_rounding(x: list, tolerance) -> list[float]:
     ```
     """
     return list({round(i / tolerance) * tolerance for i in x})
+
 
 def find_section_starts(x: pd.Series, fluctuation_tolerance: float = 0) -> list[int]:
     """Find the indices of the start of each section in a series of data,
@@ -41,9 +46,10 @@ def find_section_starts(x: pd.Series, fluctuation_tolerance: float = 0) -> list[
     df["y"] = sum([df[f"{value}"] for value in values])
     section_starts = [0]
     for i in df.index[1:]:
-        if df["y"][i] != df["y"][i - 1]:
-            section_starts.append(i)
+        if df["y"][i] != df["y"][i - 1]:  # type: ignore
+            section_starts.append(i)  # type: ignore
     return section_starts
+
 
 def find_sequence_starts(x: pd.Series, flucuation_tolerance: float = 0) -> list[int]:
     """Find the indices of the start of each sequence in a series of data,
@@ -63,20 +69,20 @@ def find_sequence_starts(x: pd.Series, flucuation_tolerance: float = 0) -> list[
     """
     df = pd.DataFrame({"x": x, "diff": x.diff()})
     df["direction"] = np.where(df["diff"] > 0, 1, -1)
-    start: int = df.index.start
+    start: int = df.index.start  # type: ignore
     df.at[start, "direction"] = df.at[
         start + 1, "direction"
     ]  # since the first value of diff is NaN
     # if there's a really small diff value with the opposite sign of diff values around it, it's probably a mistake
     sequence_starts = [0]
     for i in df[start + 2 :].index:
-        last2_dir = df.at[i - 2, "direction"]
-        last1_dir = df.at[i - 1, "direction"]
+        last2_dir = df.at[i - 2, "direction"]  # type: ignore
+        last1_dir = df.at[i - 1, "direction"]  # type: ignore
         current_dir = df.at[i, "direction"]
         try:
-            next1_dir = df.at[i + 1, "direction"]
-            next2_dir = df.at[i + 2, "direction"]
-            next3_dir = df.at[i + 3, "direction"]
+            next1_dir = df.at[i + 1, "direction"]  # type: ignore
+            next2_dir = df.at[i + 2, "direction"]  # type: ignore
+            next3_dir = df.at[i + 3, "direction"]  # type: ignore
         except KeyError:
             # reached end of dataframe
             break
@@ -88,7 +94,7 @@ def find_sequence_starts(x: pd.Series, flucuation_tolerance: float = 0) -> list[
                 df.at[i, "direction"] = last1_dir
                 current_dir = last1_dir
             else:
-                sequence_starts.append(i)
+                sequence_starts.append(i)  # type: ignore
 
         # below handles, for example, zfc from 5 to 300 K, fc from 300 to 5 K
         # assumes there won't be any fluctuations at the beginning of a sequence
@@ -97,6 +103,6 @@ def find_sequence_starts(x: pd.Series, flucuation_tolerance: float = 0) -> list[
             and (current_dir != last1_dir)
             and (current_dir == next1_dir == next2_dir == next3_dir)
         ):
-            sequence_starts.append(i)
+            sequence_starts.append(i)  # type: ignore
 
     return sequence_starts

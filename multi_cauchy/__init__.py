@@ -6,3 +6,11 @@ from multi_cauchy.parsing_algos import (
 )
 from multi_cauchy.c_params import CauchyParams, build_params
 from multi_cauchy.cdfs import cauchy_cdf, multi_cauchy_cdf, fit_multi_cauchy_cdf
+from multi_cauchy.pdfs import (
+    cauchy_pdf,
+    multi_cauchy_pdf,
+    fit_multi_cauchy_pdf,
+    quick_find_peaks,
+)
+from multi_cauchy.plots import plot_cdf_fit, plot_pdf_fit
+from multi_cauchy.simultaneous_fitting import fit_multi_cauchy_cdf_and_pdf
