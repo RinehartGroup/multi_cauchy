@@ -12,5 +12,12 @@ from multi_cauchy.pdfs import (
     fit_multi_cauchy_pdf,
     quick_find_peaks,
 )
-from multi_cauchy.plots import plot_cdf_fit, plot_pdf_fit
+from multi_cauchy.plots import plot_mvsh, plot_cdf_fit, plot_pdf_fit
 from multi_cauchy.simultaneous_fitting import fit_multi_cauchy_cdf_and_pdf
+from multi_cauchy.report import (
+    write_report,
+    ingest_report,
+    ReportFile,
+    ReportMeasurement,
+    ReportFit,
+)

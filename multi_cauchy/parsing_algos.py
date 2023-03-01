@@ -18,7 +18,27 @@ def unique_values_w_rounding(x: ArrayLike, tolerance) -> list[float]:
     return list({round(i / tolerance) * tolerance for i in x})
 
 
-def find_section_starts(x: pd.Series, fluctuation_tolerance: float = 0) -> list[int]:
+def unique_values_for_temperatures(x: ArrayLike) -> list[float]:
+    """For magnetometry experiments, the instrument is typically better at holding more precise
+    temperatures at low temperature.
+
+    This function makes some assumptions about the intended precision of temperatures based on
+    the actual temperature under consideration, then rounds accordingly.
+    """
+    temps = []
+    for i in x:
+        if i < 10:
+            temps.append(round(i / 0.25) * 0.25)
+        elif i < 50:
+            temps.append(round(i / 0.5) * 0.5)
+        else:
+            temps.append(round(i / 1.0) * 1.0)
+    return list(set(temps))
+
+
+def find_section_starts(
+    x: pd.Series, fluctuation_tolerance: float | str = 0
+) -> list[int]:
     """Find the indices of the start of each section in a series of data,
     where a section is defined as a series of identical numbers (within the `fluctuation_tolerance`).
 
@@ -33,15 +53,32 @@ def find_section_starts(x: pd.Series, fluctuation_tolerance: float = 0) -> list[
     [0, 5]
     ```
     """
-    values = unique_values_w_rounding(x, fluctuation_tolerance)
+    if isinstance(fluctuation_tolerance, float) or isinstance(
+        fluctuation_tolerance, int
+    ):
+        values = unique_values_w_rounding(x, fluctuation_tolerance)
+    elif fluctuation_tolerance == "temperature":
+        values = unique_values_for_temperatures(x)
+    else:
+        raise ValueError(
+            f"fluctuation_tolerance must be either 'temperature' or a float, not {fluctuation_tolerance}"
+        )
     df = pd.DataFrame({"x": x})
     for value in values:
-        df[f"{value}"] = df["x"].mask(
-            abs(df["x"] - value) < fluctuation_tolerance, value
-        )
-        df[f"{value}"] = df[f"{value}"].mask(
-            abs(df["x"] - value) > fluctuation_tolerance, 0
-        )
+        if isinstance(fluctuation_tolerance, float) or isinstance(
+            fluctuation_tolerance, int
+        ):
+            mask_range = fluctuation_tolerance
+        elif fluctuation_tolerance == "temperature":
+            if value < 10:
+                mask_range = 0.25
+            elif value < 50:
+                mask_range = 0.5
+            else:
+                mask_range = 1.0
+
+        df[f"{value}"] = df["x"].mask(abs(df["x"] - value) < mask_range, value)
+        df[f"{value}"] = df[f"{value}"].mask(abs(df["x"] - value) > mask_range, 0)
     df.drop(columns=["x"], inplace=True)
     df["y"] = sum([df[f"{value}"] for value in values])
     section_starts = [0]

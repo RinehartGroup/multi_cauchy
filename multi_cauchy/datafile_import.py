@@ -3,6 +3,8 @@ from pathlib import Path
 import csv
 import pandas as pd
 import numpy as np
+from datetime import datetime
+from hashlib import sha512
 
 from multi_cauchy.parsing_algos import (
     find_section_starts,
@@ -21,9 +23,12 @@ class MvsHFile:
         self.data = self._read_data()
         self.temperatures_w_index = self._find_temperatures()
         self.temperatures = [t[0] for t in self.temperatures_w_index]
+        self.date_created = self._find_date_created()
+        self.length = self.path.stat().st_size
+        self.sha512 = self._find_sha512()
 
-    def _read_header(self) -> list[str]:
-        self.header: list[str] = []
+    def _read_header(self) -> list[list[str]]:
+        self.header: list[list[str]] = []
         with open(self.path, "r") as f:
             csv_reader = csv.reader(f)
             csv_reader.__next__()  # skip first line that just says "[Header]"
@@ -31,7 +36,7 @@ class MvsHFile:
                 if "[Data]" in row:
                     break
                 else:
-                    self.header.append(row)  # type: ignore
+                    self.header.append(row)
         return self.header
 
     def _find_sample_info(self) -> dict[str, float]:
@@ -45,7 +50,7 @@ class MvsHFile:
                 self.sample_info["molecular_weight"] = float(line[1])
             elif line[0] == "INFO" and line[2] == "SAMPLE_SIZE" and line[1]:
                 self.sample_info["diamagnetic_correction"] = float(line[1])
-        if self.sample_info["mass"] and self.sample_info["molecular_weight"]:
+        if self.sample_info.get("mass") and self.sample_info.get("molecular_weight"):
             self.sample_info["mol"] = (
                 self.sample_info["mass"] / 1000
             ) / self.sample_info["molecular_weight"]
@@ -55,8 +60,10 @@ class MvsHFile:
         self.data = pd.read_csv(self.path, skiprows=len(self.header) + 2)
         self.data = self.data[self.data["Comment"].isna()].reset_index(drop=True)
         self._simplify_data()
-        if self.sample_info["diamagnetic_correction"]:
+        if self.sample_info.get("diamagnetic_correction"):
             self._correct_diamagnetic()
+        else:
+            self._work_with_uncorrected_moment()
         return self.data
 
     def _simplify_data(self) -> None:
@@ -88,11 +95,14 @@ class MvsHFile:
             - self.sample_info["diamagnetic_correction"] * self.sample_info["mol"]
         ) * self.data["field"]
         self.data["moment"] = self.data["moment_emu"] / self.sample_info["mol"] / 5585
+        self.data["normalized_moment"] = self.data["moment"] / self.data["moment"].max()
+
+    def _work_with_uncorrected_moment(self) -> None:
+        self.data["moment"] = self.data["uncorrected_moment_emu"]
+        self.data["normalized_moment"] = self.data["moment"] / self.data["moment"].max()
 
     def _find_temperatures(self) -> list[tuple[float, int]]:
-        section_starts = find_section_starts(
-            self.data["temperature"], fluctuation_tolerance=0.25
-        )
+        section_starts = find_section_starts(self.data["temperature"], "temperature")
         self.temperatures_w_index = []
         for i in section_starts:
             # round temperature to nearset 0.25 K
@@ -108,18 +118,40 @@ class MvsHFile:
             ) / self.sample_info["molecular_weight"]
         self._read_data()
 
+    def _find_date_created(self) -> str:
+        for line in self.header:
+            if line[0] == "FILEOPENTIME":
+                day = line[2]
+                hour = line[3]
+                break
+        hour24 = datetime.strptime(hour, "%I:%M %p")  # type: ignore
+        date = [int(d) for d in day.split("/")]  # type: ignore
+        timestamp = datetime(date[2], date[0], date[1], hour24.hour, hour24.minute)
+        return timestamp.isoformat()
+
+    def _find_sha512(self) -> str:
+        chunk_size = 4 * 1024 * 1024  # 4MB chunks
+        hasher = sha512()
+
+        with self.path.open("rb") as f:
+            while chunk := f.read(chunk_size):
+                hasher.update(chunk)
+
+        return hasher.hexdigest()
+
 
 class MvsHMeasurement:
     """Contains data and metadata for a single MvsH measurement."""
 
     def __init__(self, file: MvsHFile, temperature_index: int):
         self.file = file
+        self.temperature_index = temperature_index
         self.temperature = self.file.temperatures[temperature_index]
         self.data = self._find_data(temperature_index)
+        self._add_dmdh()
         self.virgin, self.reverse, self.forward = self._set_sequences()
-        if isinstance(self.reverse, pd.DataFrame) and self.forward is None:
-            self.forward = self._reverse_df(self.reverse)
-            self.reverse = None
+        self._ensure_some_data()
+        self.sweep_rate, self.sweep_rate_std = self._find_sweep_rate()
 
     def _find_data(self, temperature_index: int) -> pd.DataFrame:
         start = self.file.temperatures_w_index[temperature_index][1]
@@ -129,6 +161,11 @@ class MvsHMeasurement:
         except IndexError:
             df = self.file.data[start:].copy().reset_index(drop=True)
         return df
+
+    def _add_dmdh(self) -> None:
+        self.data["dmdh"] = np.gradient(
+            self.data["normalized_moment"], self.data["field"]
+        )
 
     def _set_sequences(
         self,
@@ -172,11 +209,31 @@ class MvsHMeasurement:
                 forward = self.data[sequence_starts[0] :].copy().reset_index(drop=True)
             else:
                 reverse = self.data[sequence_starts[0] :].copy().reset_index(drop=True)
+            reverse = None
+
         return virgin, reverse, forward
 
+    def _ensure_some_data(self) -> None:
+        if self.virgin is None and self.reverse is None and self.forward is None:
+            raise ValueError("Unable to find either virgin, forward, or reverse sweep.")
+
+    def _find_sweep_rate(self) -> tuple[float, float]:
+        if isinstance(self.forward, pd.DataFrame):
+            df = self.forward
+        elif isinstance(self.reverse, pd.DataFrame):
+            df = self.reverse
+        elif isinstance(self.virgin, pd.DataFrame):
+            df = self.virgin
+        else:
+            raise ValueError("Unable to find either virgin, forward, or reverse sweep.")
+
+        sweep = np.gradient(df["field"], df["time"])
+        rate = sweep.mean()
+        rate_std = sweep.std()
+        return rate, rate_std
+
     @staticmethod
-    def _reverse_df(df: pd.DataFrame) -> pd.DataFrame:
-        """Converts a reverse sequence to a forward sequence."""
+    def reverse_sequence(df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
         columns = [
             "field",
@@ -184,7 +241,11 @@ class MvsHMeasurement:
             "uncorrected_moment_error",
             "moment_emu",
             "moment",
+            "normalized_moment",
         ]
         for column in columns:
-            df[column] = df[column] * -1
+            try:
+                df[column] = df[column] * -1
+            except KeyError:
+                continue
         return df
