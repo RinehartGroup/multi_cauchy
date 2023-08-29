@@ -14,7 +14,7 @@ authors:
 repository-code: 'https://github.com/RinehartGroup/multi_cauchy.git'
 url: 'https://github.com/RinehartGroup/multi_cauchy.git'
 abstract: >-
-  A small library for handling variable field magnetization data 
+  A Python library for handling variable field magnetization data 
   and fitting it to multiple Cauchy distributions.
 license: MIT
 version: 1.0.0
