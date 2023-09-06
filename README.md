@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org/badge/601254732.svg)](https://zenodo.org/badge/latestdoi/601254732)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.8322910.svg)](https://doi.org/10.5281/zenodo.8322910)
 
 # multi_cauchy
 A quick exploration of fitting variable field magnetization data of nanoparticle and molecular magnets to a sum of an arbitrary number of Cauchy distributions.
