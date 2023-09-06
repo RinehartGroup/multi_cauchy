@@ -56,6 +56,7 @@ def write_report(
     cdf_fit_results: MinimizerResult,
     pdf_fit_results: MinimizerResult,
     path: Path | str | None = None,
+    overwrite: bool = False,
 ) -> None:
     report_cdf_fit = ReportFit(
         sum_square_error=cdf_fit_results.chisqr,
@@ -103,7 +104,7 @@ def write_report(
                     "A measurement with the same temperature and number of terms "
                     f"already exists in {name}. Do you want to (1) overwrite it, "
                     "(2) keep both, or (3) cancel this report? [1/2/3]"
-                )
+                ) if not overwrite else "1"
                 if response == "1":
                     report_file.measurements.remove(meas)
                     break

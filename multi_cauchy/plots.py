@@ -35,17 +35,18 @@ def plot_cdf_fit(
     sequence: str = "both",  # "forward" or "reverse" or "both"
 ) -> tuple[plt.Figure, tuple[plt.Axes, plt.Axes]]:  # type: ignore
     _ensure_sequence_exists(measurement, sequence)
-    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, height_ratios=[5, 1])
-    fig.subplots_adjust(hspace=0)
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize = (5,5), height_ratios=[5, 1])
+    fig.subplots_adjust(hspace=0.2)
     axs = (ax1, ax2)
     h, m_data = _plot_data(ax1, "cdf", measurement, sequence)
     _plot_fit(ax1, "cdf", fit_result, h)
     max_h_c = _plot_fit_terms(ax1, "cdf", fit_result, h)
     _add_residual(ax2, "cdf", measurement, fit_result, sequence, max_h_c)
     _set_ax_lims(ax1, "cdf", h, max_h_c, m_data)
-    ax1.legend()
+    ax1.legend(frameon=False)
+    ax2.set_xlabel('$H$ (Oe)')
+    ax1.set_ylabel('$m$')
     return fig, axs
-
 
 def plot_pdf_fit(
     measurement: MvsHMeasurement,
@@ -53,17 +54,19 @@ def plot_pdf_fit(
     sequence: str = "both",  # "forward" or "reverse" or "both"",
 ) -> tuple[plt.Figure, tuple[plt.Axes, plt.Axes]]:  # type: ignore
     _ensure_sequence_exists(measurement, sequence)
-    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, height_ratios=[5, 1])
-    fig.subplots_adjust(hspace=0)
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize = (5,5), height_ratios=[5, 1])
+    fig.subplots_adjust(hspace=0.2)
     axs = (ax1, ax2)
     h, m_data = _plot_data(ax1, "pdf", measurement, sequence)
     _plot_fit(ax1, "pdf", fit_result, h)
     max_h_c = _plot_fit_terms(ax1, "pdf", fit_result, h)
     _add_residual(ax2, "pdf", measurement, fit_result, sequence, max_h_c)
     _set_ax_lims(ax1, "pdf", h, max_h_c, m_data)
-    ax1.legend()
+    ax1.legend(frameon=False, loc ='upper left')
+    ax2.set_xlabel('$H$ (Oe)')
+    ax1.set_ylabel('$dm/dH$')
+    ax1.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
     return fig, axs
-
 
 def _ensure_sequence_exists(measurement: MvsHMeasurement, sequence: str) -> None:
     if sequence not in ["forward", "reverse", "both"]:
@@ -96,6 +99,8 @@ def _plot_data(
             m_data,
             label="Forward Data",
             color="red",
+            linewidth = 2.5,
+            alpha = 0.25
         )
     if sequence in ["reverse", "both"] and measurement.reverse is not None:
         h_range = (
@@ -118,6 +123,8 @@ def _plot_data(
             m_data,
             label=label,
             color="blue",
+            linewidth = 2.5,
+            alpha = 0.25
         )
     return np.linspace(h_range[0], h_range[1], 1000), m_data
 
@@ -130,7 +137,7 @@ def _plot_fit(
         "pdf": multi_cauchy_pdf,
     }[plot_type]
     fit_m = model(h, fit_result.params)
-    ax.plot(h, fit_m, label="Fit", color="black")
+    ax.plot(h, fit_m, label="Fit", color="black", linewidth = 2.5)
 
 
 def _plot_fit_terms(
@@ -148,7 +155,7 @@ def _plot_fit_terms(
         params["h_c"] = fit_result.params[f"h_c_{j}"]
         params["gamma"] = fit_result.params[f"gamma_{j}"]
         term_m = model(h, params)
-        ax.plot(h, term_m, label=f"Term {j}")
+        ax.plot(h, term_m, label=f"Term {j+1}", linewidth = 2.5)
         max_h_c = max(max_h_c, abs(params["h_c"]))
     return max_h_c
 
@@ -239,6 +246,7 @@ def _add_residual(
     y_min = np.floor(res_min_max[0] * 10) / 10
     y_max = np.ceil(res_min_max[1] * 10) / 10
     ax.set_ylim(y_min, y_max)
+    ax.set_ylabel('residual')
 
 
 def _set_ax_lims(
